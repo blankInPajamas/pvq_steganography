@@ -1,0 +1,59 @@
+# ---------- libopus build tree (cloned + built) ----------
+/opus/
+
+# ---------- Local build outputs ----------
+/build/
+
+# ---------- Datasets: raw PCM is large, do not commit ----------
+/data/pcm/*
+!/data/pcm/.gitkeep
+!/data/pcm/manifest.txt
+!/data/pcm/README.md
+
+# ---------- Bitstreams and decoded output ----------
+/data/bitstreams/encoded/*
+/data/bitstreams/modified/*
+/data/output/*
+!/data/bitstreams/encoded/.gitkeep
+!/data/bitstreams/modified/.gitkeep
+!/data/output/.gitkeep
+
+# ---------- Logs (generated, large, machine-specific) ----------
+/logs/*.log
+/logs/encode_*.log
+/logs/pvq_indices/*
+!/logs/pvq_indices/.gitkeep
+
+# ---------- Patches directory (keep patches, ignore backups) ----------
+/patches/*.orig
+/patches/*.rej
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+
+# ---------- C / build detritus ----------
+*.o
+*.a
+*.so
+*.so.*
+*.dSYM/
+core
+core.*
+
+# ---------- Editor / OS ----------
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# ---------- Local environment ----------
+.env
+*.local
