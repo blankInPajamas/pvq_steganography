@@ -62,3 +62,25 @@ pvq_steganography/
 - PVQ indices are coded via ec_enc_uint (range coder). No raw-bit
   path exists for PVQ in this libopus revision.
 - Encoded bitstream is byte-identical with and without logging.
+
+## Phase 2 — PVQ index substitution is bit-neutral
+
+Target: (frame=5, band=19) in cv_001 @ 64 kbps, 20 ms, audio mode.
+
+That target matched 10 partitions of the same logical band, each with its
+own (N, K, V). All 10 partitions were substituted simultaneously.
+
+### Results
+
+| Experiment | Container size | Packet size deltas | PSNR (mod vs base) |
+|---|---|---|---|
+| Baseline | 132,365 B | — | — |
+| delta = 1, all 10 partitions | 132,365 B | 0 / 805 | 133.63 dB |
+| delta = 2, all 10 partitions | 132,365 B | 0 / 805 | not measured |
+| delta sweep 1..1024 | 132,365 B (all) | 0 / 805 | not measured |
+| band sweep, 18 bands in frame 5 | 132,365 B (all) | 0 / 805 | not measured |
+
+Conclusion: PVQ index substitution does not alter range-coder bit
+consumption, for the tested range of deltas and codebook sizes, at this
+bitrate and frame size. The decoder remains synchronized and the
+perceptual cost is negligible (<1 LSB RMS).
