@@ -1,8 +1,8 @@
 # ---------- libopus build tree (cloned + built) ----------
-/opus/
+opus/
 
 # ---------- Local build outputs ----------
-/build/
+build/
 
 # ---------- Datasets: raw PCM is large, do not commit ----------
 /data/pcm/*
