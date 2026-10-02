@@ -46,12 +46,19 @@ pvq_steganography/
 - Converted files: data/pcm/cv_001.raw ... cv_NNN.raw
 - Full file manifest: data/pcm/manifest.txt
 
-## Getting Started
 
-Run the following command to clone opus from the official repo and build:
+## Phase 1 findings — cv_001 @ 64 kbps, 20 ms, audio, fixed-point build
 
-```text
-make build
-```
-
-
+- 805 encoded frames, 802 with at least one PVQ band
+- 38,732 PVQ band records total
+- Per-band codebook size V ranges from ~2^4 to ~2^32
+- Distribution of log2(V):
+     V <  2^16: ~14,500 bands  (37%)
+     V >= 2^16: ~24,200 bands  (63%)
+     V >= 2^24: ~15,700 bands  (41%)
+     V >= 2^28: ~ 7,000 bands  (18%)
+     V >= 2^31: ~ 1,600 bands  ( 4%)
+- Largest observed V: 4,196,289,420 ≈ 2^31.97
+- PVQ indices are coded via ec_enc_uint (range coder). No raw-bit
+  path exists for PVQ in this libopus revision.
+- Encoded bitstream is byte-identical with and without logging.
