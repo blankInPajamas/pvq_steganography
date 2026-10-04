@@ -32,19 +32,33 @@ make -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
 make install
 
 # Apply the PVQ instrumentation patches, then rebuild.
+# Apply the PVQ instrumentation patches, then rebuild.
 cd "$ROOT/opus"
-for p in "$ROOT"/patches/*.patch; do
-    [ -e "$p" ] || continue
+
+shopt -s nullglob
+patch_files=("$ROOT"/patches/*.patch)
+shopt -u nullglob
+
+if [ ${#patch_files[@]} -eq 0 ]; then
+    echo "error: no patches found in $ROOT/patches" >&2
+    exit 1
+fi
+
+for p in "${patch_files[@]}"; do
     if git apply --check "$p" 2>/dev/null; then
         git apply "$p"
         echo "applied $p"
     elif git apply --reverse --check "$p" 2>/dev/null; then
         echo "$p already applied"
     else
-        echo "warning: cannot apply $p cleanly" >&2
+        echo "error: cannot apply $p" >&2
+        exit 1
     fi
 done
 
+# Post-condition: the instrumentation must be in the source tree.
+grep -q "g_pvq_target_partition" "$ROOT/opus/celt/cwrs.c" \
+    || { echo "error: PVQ instrumentation missing from cwrs.c" >&2; exit 1; }
 make -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
 make install
 

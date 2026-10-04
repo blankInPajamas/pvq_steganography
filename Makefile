@@ -16,11 +16,11 @@ tools: build/encode_raw build/decode_raw
 
 build/encode_raw: scripts/encode_raw.c $(OPUS_LIB)
 	@mkdir -p build
-	$(CC) $(CFLAGS) $(OPUS_CFLAGS) $< -o $@ $(OPUS_LIBS)
+	$(CC) $(CFLAGS) $(OPUS_CFLAGS) -static $< -o $@ $(OPUS_LIBS)
 
 build/decode_raw: scripts/decode_raw.c $(OPUS_LIB)
 	@mkdir -p build
-	$(CC) $(CFLAGS) $(OPUS_CFLAGS) $< -o $@ $(OPUS_LIBS)
+	$(CC) $(CFLAGS) $(OPUS_CFLAGS) -static $< -o $@ $(OPUS_LIBS)
 
 bootstrap:
 	./scripts/bootstrap.sh

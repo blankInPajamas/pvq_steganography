@@ -1,0 +1,184 @@
+diff --git a/celt/bands.c b/celt/bands.c
+index 6785e08e..8091c4b1 100644
+--- a/celt/bands.c
++++ b/celt/bands.c
+@@ -1473,6 +1473,7 @@ void quant_all_bands(int encode, const CELTMode *m, int start, int end,
+    ctx.avoid_split_noise = B > 1;
+    for (i=start;i<end;i++)
+    {
++      g_pvq_band = i;
+       opus_int32 tell;
+       int b;
+       int N;
+diff --git a/celt/celt_encoder.c b/celt/celt_encoder.c
+index 7f32a801..822a9f20 100644
+--- a/celt/celt_encoder.c
++++ b/celt/celt_encoder.c
+@@ -50,6 +50,7 @@
+ #include <stdarg.h>
+ #include "celt_lpc.h"
+ #include "vq.h"
++#include "cwrs.h"
+ 
+ 
+ /** Encoder state
+@@ -1431,6 +1432,10 @@ static int compute_vbr(const CELTMode *mode, AnalysisInfo *analysis, opus_int32
+ int celt_encode_with_ec(CELTEncoder * OPUS_RESTRICT st, const opus_val16 * pcm, int frame_size, unsigned char *compressed, int nbCompressedBytes, ec_enc *enc)
+ {
+    int i, c, N;
++   
++   if (enc != NULL)
++      pvq_log_frame_advance();
++   
+    opus_int32 bits;
+    ec_enc _enc;
+    VARDECL(celt_sig, in);
+diff --git a/celt/cwrs.c b/celt/cwrs.c
+index a552e4f0..385c1d8d 100644
+--- a/celt/cwrs.c
++++ b/celt/cwrs.c
+@@ -36,8 +36,33 @@
+ #include "mathops.h"
+ #include "arch.h"
+ 
++#include <stdio.h>
++#include <stdlib.h>
++
++int  g_pvq_band = -1;
++unsigned long long g_pvq_frame = 0;
++FILE *g_pvq_log = NULL;
++
++static int g_pvq_log_init = 0;
++
++void pvq_log_open(void) {
++    if (g_pvq_log_init) return;
++    g_pvq_log_init = 1;
++    const char *path = getenv("PVQ_LOG");
++    if (path && *path) {
++        g_pvq_log = fopen(path, "w");
++        if (g_pvq_log) {
++            fprintf(g_pvq_log, "frame\tband\tN\tK\tV\tindex\n");
++            setvbuf(g_pvq_log, NULL, _IOLBF, 0);
++        }
++    }
++}
++
++void pvq_log_frame_advance(void) { g_pvq_frame++; }
++
+ #ifdef CUSTOM_MODES
+ 
++
+ /*Guaranteed to return a conservatively large estimate of the binary logarithm
+    with frac bits of fractional precision.
+   Tested for all possible 32-bit inputs with frac=4, where the maximum
+@@ -455,9 +480,83 @@ static opus_uint32 icwrs(int _n,const int *_y){
+   return i;
+ }
+ 
++static FILE *g_pvq_mod_log = NULL;
++static int   g_pvq_mod_init = 0;
++static long  g_pvq_target_frame = -1;
++static int   g_pvq_target_band  = -1;
++static long  g_pvq_delta        = 0;
++
++static int   g_pvq_partition_counter = 0;
++static int   g_pvq_band_last_seen    = -2;
++static long  g_pvq_target_partition  = -1;
++
++static void pvq_mod_open(void) {
++    if (g_pvq_mod_init) return;
++    g_pvq_mod_init = 1;
++    const char *tf = getenv("PVQ_MOD_TARGET_FRAME");
++    const char *tb = getenv("PVQ_MOD_TARGET_BAND");
++    const char *tp = getenv("PVQ_MOD_TARGET_PARTITION");
++    const char *d  = getenv("PVQ_MOD_DELTA");
++    const char *ml = getenv("PVQ_MOD_LOG");
++    if (tf) g_pvq_target_frame     = atol(tf);
++    if (tb) g_pvq_target_band      = atoi(tb);
++    if (tp) g_pvq_target_partition = atol(tp);
++    if (d)  g_pvq_delta            = atol(d);
++    if (ml && *ml) {
++        g_pvq_mod_log = fopen(ml, "w");
++        if (g_pvq_mod_log)
++            fprintf(g_pvq_mod_log,
++                    "frame\tband\tpart\tN\tK\tV\tidx_orig\tidx_mod\tdelta\n");
++    }
++}
++
+ void encode_pulses(const int *_y,int _n,int _k,ec_enc *_enc){
++  opus_uint32 _idx;
++  opus_uint32 _V;
++  opus_uint32 _idx_mod;
++
+   celt_assert(_k>0);
+-  ec_enc_uint(_enc,icwrs(_n,_y),CELT_PVQ_V(_n,_k));
++  _idx = icwrs(_n,_y);
++  _V   = CELT_PVQ_V(_n,_k);
++  _idx_mod = _idx;
++
++  pvq_log_open();
++  if (g_pvq_log) {
++    fprintf(g_pvq_log, "%llu\t%d\t%d\t%d\t%u\t%u\n",
++            g_pvq_frame, g_pvq_band, _n, _k,
++            (unsigned)_V, (unsigned)_idx);
++  }
++
++  pvq_mod_open();
++
++  /* Track partition index within the current band. Reset on band change. */
++  if (g_pvq_band != g_pvq_band_last_seen) {
++      g_pvq_partition_counter = 0;
++      g_pvq_band_last_seen = g_pvq_band;
++  } else {
++      g_pvq_partition_counter++;
++  }
++
++  if (g_pvq_target_frame >= 0 && g_pvq_target_band >= 0 && g_pvq_delta != 0) {
++    int part_match = (g_pvq_target_partition < 0
++                      || g_pvq_partition_counter == (int)g_pvq_target_partition);
++    if ((long)g_pvq_frame == g_pvq_target_frame
++        && g_pvq_band == g_pvq_target_band
++        && part_match) {
++      long newval = ((long)_idx + g_pvq_delta) % (long)_V;
++      if (newval < 0) newval += (long)_V;
++      _idx_mod = (opus_uint32)newval;
++      if (g_pvq_mod_log) {
++        fprintf(g_pvq_mod_log, "%llu\t%d\t%d\t%d\t%d\t%u\t%u\t%u\t%ld\n",
++                g_pvq_frame, g_pvq_band, g_pvq_partition_counter,
++                _n, _k, (unsigned)_V, (unsigned)_idx, (unsigned)_idx_mod,
++                g_pvq_delta);
++        fflush(g_pvq_mod_log);
++      }
++    }
++  }
++
++  ec_enc_uint(_enc,_idx_mod,_V);
+ }
+ 
+ static opus_val32 cwrsi(int _n,int _k,opus_uint32 _i,int *_y){
+diff --git a/celt/cwrs.h b/celt/cwrs.h
+index 7cd47174..90d74944 100644
+--- a/celt/cwrs.h
++++ b/celt/cwrs.h
+@@ -30,6 +30,7 @@
+ #ifndef CWRS_H
+ #define CWRS_H
+ 
++#include <stdio.h>     
+ #include "arch.h"
+ #include "stack_alloc.h"
+ #include "entenc.h"
+@@ -43,6 +44,13 @@ void get_required_bits(opus_int16 *bits, int N, int K, int frac);
+ 
+ void encode_pulses(const int *_y, int N, int K, ec_enc *enc);
+ 
++void pvq_log_open(void);
++void pvq_log_frame_advance(void);
++
++extern int g_pvq_band;
++extern unsigned long long g_pvq_frame;
++extern FILE *g_pvq_log;
++
+ opus_val32 decode_pulses(int *_y, int N, int K, ec_dec *dec);
+ 
+ #endif /* CWRS_H */
