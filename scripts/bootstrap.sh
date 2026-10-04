@@ -4,6 +4,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+echo "=== ensure output directories exist ==="
+mkdir -p data/bitstreams/encoded
+mkdir -p data/bitstreams/modified
+mkdir -p data/output
+mkdir -p logs/phase3a
+
 # shellcheck source=/dev/null
 source "$ROOT/config.env"
 

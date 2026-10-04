@@ -60,3 +60,7 @@ Thumbs.db
 
 # Data
 data/
+
+# ------ Phase 3a -------
+/logs/phase3a/*
+!/logs/phase3a/.gitkeep
