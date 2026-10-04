@@ -84,3 +84,14 @@ Conclusion: PVQ index substitution does not alter range-coder bit
 consumption, for the tested range of deltas and codebook sizes, at this
 bitrate and frame size. The decoder remains synchronized and the
 perceptual cost is negligible (<1 LSB RMS).
+
+
+## PVQ log format
+
+Columns: frame, band, N, K, V, index.
+
+- `frame` is 1-based, incremented once per call to `celt_encode_with_ec`.
+- The first few frames of a speech clip often contain silence and emit
+  no PVQ rows. The first logged frame for cv_001 is frame 4.
+- Rows are emitted in the order the encoder processes bands and their
+  partitions, one row per `encode_pulses` call.
